@@ -8,8 +8,7 @@ import ChatBody from "../components/ChatBody";
 import ChatFooter from "../components/ChatFooter";
 import "../styles/chat.css";
 
-const socket = io("http://localhost:5000");
-
+const socket = io("https://groupchat-backend-i06f.onrender.com");
 const Chat = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
