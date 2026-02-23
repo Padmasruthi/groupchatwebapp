@@ -62,28 +62,27 @@ const io = new Server(server, {
 
 // Track joined users (max 3)
 let joinedUsers = [];
+let socketUserMap = {}; // map socket.id -> userId
 
 io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
 
   /* -------- JOIN GENERAL GROUP -------- */
-  socket.on("joinGeneral", (userId) => {
-    socket.join("general");
+ socket.on("joinGeneral", (userId) => {
+  socket.join("general");
 
-    if (!joinedUsers.includes(userId)) {
-      joinedUsers.push(userId);
-    }
+  socketUserMap[socket.id] = userId;
 
-    console.log("Joined Users:", joinedUsers);
+  if (!joinedUsers.includes(userId)) {
+    joinedUsers.push(userId);
+  }
 
-    // Send updated user count to room
-    io.to("general").emit("userCount", joinedUsers.length);
+  io.to("general").emit("userCount", joinedUsers.length);
 
-    // Activate chat when 3 users joined
-    if (joinedUsers.length === 3) {
-      io.to("general").emit("chatActivated");
-    }
-  });
+  if (joinedUsers.length === 3) {
+    io.to("general").emit("chatActivated");
+  }
+});
 
   /* -------- SEND MESSAGE -------- */
   socket.on("sendMessage", (messageData) => {
@@ -91,9 +90,18 @@ io.on("connection", (socket) => {
   });
 
   /* -------- DISCONNECT -------- */
-  socket.on("disconnect", () => {
-    console.log("User Disconnected:", socket.id);
-  });
+socket.on("disconnect", () => {
+  console.log("User Disconnected:", socket.id);
+
+  const userId = socketUserMap[socket.id];
+
+  if (userId) {
+    joinedUsers = joinedUsers.filter((id) => id !== userId);
+    delete socketUserMap[socket.id];
+  }
+
+  io.to("general").emit("userCount", joinedUsers.length);
+});
 
   socket.on("typing", (email) => {
   socket.broadcast.emit("showTyping", email);
