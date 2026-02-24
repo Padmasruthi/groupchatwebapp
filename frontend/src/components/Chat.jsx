@@ -1,129 +1,75 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
-import { AuthContext } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
-import ChatHeader from "../components/ChatHeader";
-import JoinSection from "../components/JoinSection";
-import ChatBody from "../components/ChatBody";
-import ChatFooter from "../components/ChatFooter";
-import "../styles/chat.css";
 
-const socket = io("https://groupchat-backend-i06f.onrender.com");
-const Chat = () => {
-  const { user, logout } = useContext(AuthContext);
-  const navigate = useNavigate();
+const socket = io("https://your-backend.onrender.com");
 
+const Chat = ({ user }) => {
   const [joined, setJoined] = useState(false);
   const [chatActive, setChatActive] = useState(false);
   const [userCount, setUserCount] = useState(0);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
-  const [typingUser, setTypingUser] = useState("");
-  const [darkMode, setDarkMode] = useState(false);
+  const typingTimeout = useRef(null);
 
-  const toggleTheme = () => {
-    setDarkMode((prev) => !prev);
-  };
-
-  /* SOCKET LISTENERS */
   useEffect(() => {
-    socket.on("userCount", (count) => setUserCount(count));
+    socket.on("userCount", setUserCount);
     socket.on("chatActivated", () => setChatActive(true));
+    socket.on("chatDeactivated", () => setChatActive(false));
     socket.on("receiveMessage", (data) =>
       setMessages((prev) => [...prev, data])
     );
-    socket.on("showTyping", (email) => setTypingUser(email));
-    socket.on("hideTyping", () => setTypingUser(""));
 
-    return () => {
-      socket.off("userCount");
-      socket.off("chatActivated");
-      socket.off("receiveMessage");
-      socket.off("showTyping");
-      socket.off("hideTyping");
-    };
+    return () => socket.disconnect();
   }, []);
 
-  const handleJoin = () => {
+  const joinChat = () => {
     socket.emit("joinGeneral", user.userId);
     setJoined(true);
   };
 
   const sendMessage = () => {
-    if (!message.trim()) return;
+    if (!message) return;
 
-    const messageData = {
+    const data = {
       senderName: user.name,
       text: message,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: new Date().toLocaleTimeString(),
     };
 
-
-    socket.emit("sendMessage", messageData);
-    socket.emit("stopTyping");
+    socket.emit("sendMessage", data);
     setMessage("");
-  };
-
-  let typingTimeout;
-
-  const handleTyping = (value) => {
-    setMessage(value);
-
-    socket.emit("typing", user.name);
-
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-      socket.emit("stopTyping");
-    }, 1000);
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate("/");
   };
 
   if (!joined) {
     return (
-      <div className={`chat-container ${darkMode ? "dark" : ""}`}>
-        <ChatHeader
-          userCount={userCount}
-          handleLogout={handleLogout}
-          userEmail={user.email}
-          toggleTheme={toggleTheme}
-          darkMode={darkMode}
-        />
-        <JoinSection userCount={userCount} handleJoin={handleJoin} />
+      <div>
+        <h2>General Group</h2>
+        <p>{userCount}/3 Joined</p>
+        <button onClick={joinChat}>Join</button>
       </div>
     );
   }
 
   return (
-    <div className={`chat-container ${darkMode ? "dark" : ""}`}>
-      <ChatHeader
-        userCount={userCount}
-        handleLogout={handleLogout}
-        userEmail={user.name}
-        toggleTheme={toggleTheme}
-        darkMode={darkMode}
-      />
+    <div>
+      <h2>General Group Chat</h2>
 
-      <ChatBody
-        chatActive={chatActive}
-        messages={messages}
-        userEmail={user.name}
-        typingUser={typingUser}
-      />
+      {!chatActive && <p>Waiting for 3 users...</p>}
 
+      {messages.map((msg, i) => (
+        <div key={i}>
+          <strong>{msg.senderName}</strong>: {msg.text}
+        </div>
+      ))}
 
       {chatActive && (
-        <ChatFooter
-          message={message}
-          handleTyping={handleTyping}
-          sendMessage={sendMessage}
-        />
+        <>
+          <input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+          <button onClick={sendMessage}>Send</button>
+        </>
       )}
     </div>
   );
